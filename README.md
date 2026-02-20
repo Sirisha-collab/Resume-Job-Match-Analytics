@@ -6,6 +6,4 @@ Built:
 •	Cosine similarity scoring
 •	Skill gap analytics
 
-Input:
-o	Resume (pdf)
-o	A job description (text)
+Input: Resume (pdf) &	A job description (text)
