@@ -14,3 +14,11 @@ Usage Instructions
 3.	Upload job_description.txt (text or PDF)
 4.	Run all notebook cells sequentially
 5.	View:Match Score, Matched Skills, Missing Skills, LLM Feedback with resume improvement suggestions
+
+Job Data → Embeddings → KMeans → Cluster Groups
+                                ↓
+                       Salary Aggregation
+                                ↓
+                    Salary Intelligence Agent
+                                ↓
+                   Resume Salary Prediction
