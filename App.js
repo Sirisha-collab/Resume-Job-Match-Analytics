@@ -13,7 +13,6 @@ import {
   Toolbar,
   Typography,
   Container,
-  Box,
   Button,
   TextField,
   CircularProgress,
@@ -27,16 +26,14 @@ import {
   FormControlLabel
 } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
+import "./App.css";
 
 ChartJS.register(BarElement, ArcElement, CategoryScale, LinearScale);
 
 function App() {
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [jobDesc, setJobDesc] = useState("");
-  const [score, setScore] = useState(null);
-  const [matched, setMatched] = useState([]);
-  const [missing, setMissing] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
@@ -44,102 +41,81 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
 
   const theme = createTheme({
-    palette: { mode: darkMode ? "dark" : "light" },
+    palette: { mode: darkMode ? "dark" : "light" }
   });
 
-  const barData = {
-    labels: ["Matched Skills", "Missing Skills"],
-    datasets: [
-      {
-        label: "Skills Analysis",
-        data: [matched.length, missing.length],
-        backgroundColor: ["#4caf50", "#f44336"]
-      }
-    ]
-  };
-
-  const pieData = {
-    labels: ["Matched Skills", "Missing Skills"],
-    datasets: [
-      {
-        data: [matched.length, missing.length],
-        backgroundColor: ["#4caf50", "#f44336"]
-      }
-    ]
+  const chartOptions = {
+    animation: { duration: 1500 },
+    plugins: { legend: { position: "bottom" } }
   };
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post(
-        "http://127.0.0.1:5000/login",
-        { username, password },
-        { headers: { "Content-Type": "application/json" } }
-      );
+      await axios.post("http://127.0.0.1:5000/login", { username, password });
       setLoggedIn(true);
-      alert(res.data.message);
-    } catch (err) {
-      alert(err.response?.data?.error || "Login failed");
+    } catch {
+      alert("Login failed");
     }
   };
 
   const handleSubmit = async () => {
-    if (!file || !jobDesc) return alert("Upload resume and enter job description");
+    if (!files.length || !jobDesc) return alert("Upload resumes & job description");
+
     const formData = new FormData();
-    formData.append("resume", file);
+    files.forEach(f => formData.append("resumes", f));
     formData.append("job_description", jobDesc);
+
     try {
       setLoading(true);
-      const res = await axios.post("http://127.0.0.1:5000/analyze", formData);
-      setScore(res.data.score);
-      setMatched(res.data.matched_skills);
-      setMissing(res.data.missing_skills);
-      setSuggestions(res.data.suggestions);
-    } catch (err) {
-      console.error(err);
-      alert("Error analyzing resume");
+      const res = await axios.post("http://127.0.0.1:5000/compare", formData);
+      setResults(res.data.comparison);
+    } catch {
+      alert("Error analyzing resumes");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownload = async (resume) => {
     const res = await axios.post(
       "http://127.0.0.1:5000/download",
-      { score, matched_skills: matched, missing_skills: missing, suggestions },
+      resume,
       { responseType: "blob" }
     );
+
     const url = window.URL.createObjectURL(new Blob([res.data]));
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "resume_report.pdf");
+    link.setAttribute("download", `${resume.filename}_report.pdf`);
     document.body.appendChild(link);
     link.click();
   };
 
+  const handleDownloadAll = async () => {
+    const res = await axios.post(
+      "http://127.0.0.1:5000/download_comparison",
+      { comparison: results },
+      { responseType: "blob" }
+    );
+
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "comparison_report.pdf");
+    document.body.appendChild(link);
+    link.click();
+  };
+
+  // ---------------- LOGIN UI ----------------
   if (!loggedIn) {
     return (
       <ThemeProvider theme={theme}>
-        <Container maxWidth="sm" sx={{ mt: 10 }}>
-          <Card sx={{ p: 4 }}>
-            <Typography variant="h4" textAlign="center" gutterBottom>
-              Login
-            </Typography>
-            <TextField
-              label="Username"
-              fullWidth
-              sx={{ mb: 2 }}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-            <TextField
-              label="Password"
-              type="password"
-              fullWidth
-              sx={{ mb: 2 }}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Button variant="contained" color="primary" fullWidth onClick={handleLogin}>
+        <Container className="login-container">
+          <Card className="glass-card login-card">
+            <Typography variant="h5">Login</Typography>
+            <TextField label="Username" onChange={(e) => setUsername(e.target.value)} />
+            <TextField label="Password" type="password" onChange={(e) => setPassword(e.target.value)} />
+            <Button variant="contained" onClick={handleLogin}>
               Login
             </Button>
           </Card>
@@ -148,125 +124,188 @@ function App() {
     );
   }
 
+  // ---------------- MAIN UI ----------------
   return (
     <ThemeProvider theme={theme}>
-      <AppBar position="static">
+      <AppBar position="static" className="glass-nav">
         <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Resume Analyzer
-          </Typography>
+          <Typography className="title">Resume Analyzer</Typography>
           <FormControlLabel
             control={<Switch checked={darkMode} onChange={() => setDarkMode(!darkMode)} />}
-            label="Dark Mode"
+            label="Dark"
           />
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Container className="main-container">
         {/* Upload Section */}
-        <Card sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Upload Resume & Job Description
-          </Typography>
-          <input type="file" onChange={(e) => setFile(e.target.files[0])} style={{ marginBottom: "16px" }} />
+        <Card className="glass-card upload-card">
+          <input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files))} />
           <TextField
             multiline
-            minRows={4}
+            rows={3}
             placeholder="Paste Job Description"
             fullWidth
-            sx={{ mb: 2 }}
-            value={jobDesc}
             onChange={(e) => setJobDesc(e.target.value)}
           />
-          <Button variant="contained" color="primary" onClick={handleSubmit} disabled={loading}>
-            {loading ? <CircularProgress size={24} /> : "Analyze Resume"}
+          <Button variant="contained" onClick={handleSubmit}>
+            Analyze
           </Button>
+          {loading && <CircularProgress />}
         </Card>
 
-        {/* Dashboard Section */}
-        {score && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  ATS Score
-                </Typography>
-                <Box sx={{ width: "100%", bgcolor: "#eee", borderRadius: 2 }}>
-                  <Box
-                    sx={{
-                      width: `${score}%`,
-                      bgcolor: score > 70 ? "success.main" : "warning.main",
-                      p: 1,
-                      color: "#fff",
-                      textAlign: "center",
-                      borderRadius: 2
-                    }}
-                  >
-                    {score}%
-                  </Box>
-                </Box>
-              </Card>
+        {/* Results */}
+        {results.length > 0 && (
+          <>
+            <Button
+              variant="contained"
+              onClick={handleDownloadAll}
+              style={{ margin: "20px 0" }}
+            >
+              Download Combined PDF
+            </Button>
 
-              <Card sx={{ p: 3, mt: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  🤖 AI Suggestions
-                </Typography>
-                <List dense>
-                  {suggestions.map((s, i) => (
-                    <ListItem key={i}>
-                      <ListItemText primary={s} />
-                    </ListItem>
-                  ))}
-                </List>
-              </Card>
-            </Grid>
+            {results.map((resume, index) => {
+              const barData = {
+                labels: ["Matched", "Missing"],
+                datasets: [
+                  {
+                    label: "Skills",
+                    data: [
+                      resume.matched_skills.length,
+                      resume.missing_skills.length
+                    ]
+                  }
+                ]
+              };
 
-            <Grid item xs={12} md={4}>
-              <Card sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Skills Chart (Bar)
-                </Typography>
-                <Bar data={barData} />
-              </Card>
-            </Grid>
+              const pieData = {
+                labels: ["Matched", "Missing"],
+                datasets: [
+                  {
+                    data: [
+                      resume.matched_skills.length,
+                      resume.missing_skills.length
+                    ],
+                    backgroundColor: ["#2e7d32", "#d32f2f"]
+                  }
+                ]
+              };
 
-            <Grid item xs={12} md={4}>
-              <Card sx={{ p: 3, mb: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Skills Distribution (Pie)
-                </Typography>
-                <Pie data={pieData} />
-              </Card>
+              return (
+                <Grid container spacing={3} key={index} style={{ marginTop: "20px" }}>
+                  {/* Header */}
+                  <Grid item xs={12}>
+                    <Typography variant="h6">
+                      {resume.filename} - Experience: {resume.experience_level}
+                    </Typography>
+                  </Grid>
 
-              <Card sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Skills Overview
-                </Typography>
-                <Box sx={{ mb: 1 }}>
-                  <Typography variant="subtitle2">✅ Matched Skills</Typography>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {matched.map((skill, i) => (
-                      <Chip key={i} label={skill} color="success" />
-                    ))}
-                  </Box>
-                </Box>
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="subtitle2">❌ Missing Skills</Typography>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {missing.map((skill, i) => (
-                      <Chip key={i} label={skill} color="error" />
-                    ))}
-                  </Box>
-                </Box>
-              </Card>
-            </Grid>
+                  {/* ATS Score */}
+                  <Grid item xs={12} md={4}>
+                    <Card className="glass-card ats-card">
+                      <Typography>ATS Score</Typography>
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{ width: `${resume.score}%` }}
+                        >
+                          {resume.score}%
+                        </div>
+                      </div>
+                    </Card>
+                  </Grid>
 
-            <Grid item xs={12} textAlign="center" sx={{ mt: 2 }}>
-              <Button variant="contained" color="secondary" onClick={handleDownload}>
-                Download PDF Report
-              </Button>
-            </Grid>
-          </Grid>
+                  {/* Charts */}
+                  <Grid item xs={12} md={4}>
+                    <Card className="glass-card">
+                      <Bar data={barData} options={chartOptions} />
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={4}>
+                    <Card className="glass-card pie-card">
+                      <Pie data={pieData} options={chartOptions} />
+                    </Card>
+                  </Grid>
+
+                  {/* Matched Skills */}
+                  <Grid item xs={12} md={6}>
+                    <Card className="glass-card">
+                      <Typography>Matched Skills</Typography>
+                      {resume.matched_skills.map((s, i) => (
+                        <Chip key={i} label={s} color="success" className="chip" />
+                      ))}
+                    </Card>
+                  </Grid>
+
+                  {/* Missing Skills + Roadmap */}
+                  <Grid item xs={12} md={6}>
+                    <Card className="glass-card">
+                      <Typography>Missing Skills</Typography>
+                      {resume.missing_skills.map((s, i) => (
+                        <div key={i}>
+                          <Chip label={s} color="error" className="chip" />
+                          {resume.learning_roadmap?.[s] && (
+                            <List dense>
+                              {resume.learning_roadmap[s].map((link, idx) => (
+                                <ListItem
+                                  key={idx}
+                                  component="a"
+                                  href={link.url}
+                                  target="_blank"
+                                >
+                                  <ListItemText primary={link.name} />
+                                </ListItem>
+                              ))}
+                            </List>
+                          )}
+                        </div>
+                      ))}
+                    </Card>
+                  </Grid>
+
+                  {/* Suggestions */}
+                  <Grid item xs={12}>
+                    <Card className="glass-card">
+                      <Typography>Suggestions</Typography>
+                      <List>
+                        {resume.suggestions.map((s, i) => (
+                          <ListItem key={i}>
+                            <ListItemText primary={s} />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </Card>
+                  </Grid>
+
+                  {/* ✅ ATS Feedback Section */}
+                  <Grid item xs={12}>
+                    <Card className="glass-card">
+                      <Typography>ATS Simulation Feedback</Typography>
+                      <List>
+                        {resume.ats_feedback.map((f, i) => (
+                          <ListItem key={i}>
+                            <ListItemText primary={f} />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </Card>
+                  </Grid>
+
+                  {/* Download */}
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      onClick={() => handleDownload(resume)}
+                    >
+                      Download PDF
+                    </Button>
+                  </Grid>
+                </Grid>
+              );
+            })}
+          </>
         )}
       </Container>
     </ThemeProvider>
