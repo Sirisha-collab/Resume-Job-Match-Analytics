@@ -106,7 +106,6 @@ function App() {
     link.click();
   };
 
-  // ---------------- LOGIN UI ----------------
   if (!loggedIn) {
     return (
       <ThemeProvider theme={theme}>
@@ -115,21 +114,18 @@ function App() {
             <Typography variant="h5">Login</Typography>
             <TextField label="Username" onChange={(e) => setUsername(e.target.value)} />
             <TextField label="Password" type="password" onChange={(e) => setPassword(e.target.value)} />
-            <Button variant="contained" onClick={handleLogin}>
-              Login
-            </Button>
+            <Button variant="contained" onClick={handleLogin}>Login</Button>
           </Card>
         </Container>
       </ThemeProvider>
     );
   }
 
-  // ---------------- MAIN UI ----------------
   return (
     <ThemeProvider theme={theme}>
-      <AppBar position="static" className="glass-nav">
+      <AppBar position="static">
         <Toolbar>
-          <Typography className="title">Resume Analyzer</Typography>
+          <Typography variant="h6">AI Resume Analyzer</Typography>
           <FormControlLabel
             control={<Switch checked={darkMode} onChange={() => setDarkMode(!darkMode)} />}
             label="Dark"
@@ -137,171 +133,139 @@ function App() {
         </Toolbar>
       </AppBar>
 
-      <Container className="main-container">
-        {/* Upload Section */}
-        <Card className="glass-card upload-card">
+      <Container>
+        {/* Upload */}
+        <Card style={{ padding: 20, marginTop: 20 }}>
           <input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files))} />
           <TextField
-            multiline
-            rows={3}
-            placeholder="Paste Job Description"
+            multiline rows={3}
             fullWidth
+            placeholder="Paste Job Description"
             onChange={(e) => setJobDesc(e.target.value)}
+            style={{ marginTop: 10 }}
           />
-          <Button variant="contained" onClick={handleSubmit}>
+          <Button variant="contained" onClick={handleSubmit} style={{ marginTop: 10 }}>
             Analyze
           </Button>
           {loading && <CircularProgress />}
         </Card>
 
-        {/* Results */}
         {results.length > 0 && (
           <>
-            <Button
-              variant="contained"
-              onClick={handleDownloadAll}
-              style={{ margin: "20px 0" }}
-            >
+            <Button onClick={handleDownloadAll} variant="contained" style={{ marginTop: 20 }}>
               Download Combined PDF
             </Button>
 
             {results.map((resume, index) => {
               const barData = {
                 labels: ["Matched", "Missing"],
-                datasets: [
-                  {
-                    label: "Skills",
-                    data: [
-                      resume.matched_skills.length,
-                      resume.missing_skills.length
-                    ]
-                  }
-                ]
+                datasets: [{ data: [resume.matched_skills.length, resume.missing_skills.length] }]
               };
 
               const pieData = {
                 labels: ["Matched", "Missing"],
-                datasets: [
-                  {
-                    data: [
-                      resume.matched_skills.length,
-                      resume.missing_skills.length
-                    ],
-                    backgroundColor: ["#2e7d32", "#d32f2f"]
-                  }
-                ]
+                datasets: [{
+                  data: [resume.matched_skills.length, resume.missing_skills.length],
+                  backgroundColor: ["#2e7d32", "#d32f2f"]
+                }]
               };
 
               return (
-                <Grid container spacing={3} key={index} style={{ marginTop: "20px" }}>
+                <Grid container spacing={3} key={index} style={{ marginTop: 20 }}>
+                  
                   {/* Header */}
                   <Grid item xs={12}>
                     <Typography variant="h6">
-                      {resume.filename} - Experience: {resume.experience_level}
+                      {resume.filename} | Experience: {resume.experience_level}
                     </Typography>
                   </Grid>
 
                   {/* ATS Score */}
                   <Grid item xs={12} md={4}>
-                    <Card className="glass-card ats-card">
+                    <Card style={{ padding: 15 }}>
                       <Typography>ATS Score</Typography>
-                      <div className="progress-bar">
-                        <div
-                          className="progress-fill"
-                          style={{ width: `${resume.score}%` }}
-                        >
-                          {resume.score}%
-                        </div>
-                      </div>
+                      <Typography variant="h5">{resume.score}%</Typography>
+                    </Card>
+                  </Grid>
+
+                  {/* ✅ ML Score */}
+                  <Grid item xs={12} md={4}>
+                    <Card style={{ padding: 15 }}>
+                      <Typography>AI Resume Score</Typography>
+                      <Typography variant="h5">{resume.ml_score}%</Typography>
+                      <Typography variant="body2">
+                        Confidence: {resume.ml_confidence}
+                      </Typography>
                     </Card>
                   </Grid>
 
                   {/* Charts */}
                   <Grid item xs={12} md={4}>
-                    <Card className="glass-card">
-                      <Bar data={barData} options={chartOptions} />
-                    </Card>
+                    <Card><Bar data={barData} options={chartOptions} /></Card>
                   </Grid>
 
                   <Grid item xs={12} md={4}>
-                    <Card className="glass-card pie-card">
-                      <Pie data={pieData} options={chartOptions} />
-                    </Card>
+                    <Card><Pie data={pieData} options={chartOptions} /></Card>
                   </Grid>
 
-                  {/* Matched Skills */}
+                  {/* Matched */}
                   <Grid item xs={12} md={6}>
-                    <Card className="glass-card">
+                    <Card>
                       <Typography>Matched Skills</Typography>
-                      {resume.matched_skills.map((s, i) => (
-                        <Chip key={i} label={s} color="success" className="chip" />
-                      ))}
+                      {resume.matched_skills.map((s,i)=><Chip key={i} label={s} color="success" />)}
                     </Card>
                   </Grid>
 
-                  {/* Missing Skills + Roadmap */}
+                  {/* Missing */}
                   <Grid item xs={12} md={6}>
-                    <Card className="glass-card">
+                    <Card>
                       <Typography>Missing Skills</Typography>
-                      {resume.missing_skills.map((s, i) => (
-                        <div key={i}>
-                          <Chip label={s} color="error" className="chip" />
-                          {resume.learning_roadmap?.[s] && (
-                            <List dense>
-                              {resume.learning_roadmap[s].map((link, idx) => (
-                                <ListItem
-                                  key={idx}
-                                  component="a"
-                                  href={link.url}
-                                  target="_blank"
-                                >
-                                  <ListItemText primary={link.name} />
-                                </ListItem>
-                              ))}
-                            </List>
-                          )}
+                      {resume.missing_skills.map((s,i)=><Chip key={i} label={s} color="error" />)}
+                    </Card>
+                  </Grid>
+
+                  {/* Roadmap */}
+                  <Grid item xs={12}>
+                    <Card>
+                      <Typography>Learning Roadmap</Typography>
+                      {Object.entries(resume.learning_roadmap || {}).map(([skill, links]) => (
+                        <div key={skill}>
+                          <Typography>{skill}</Typography>
+                          {links.map((l,i)=>(
+                            <a key={i} href={l.url} target="_blank" rel="noreferrer">{l.name}</a>
+                          ))}
                         </div>
                       ))}
                     </Card>
                   </Grid>
 
-                  {/* Suggestions */}
+                  {/* ATS */}
                   <Grid item xs={12}>
-                    <Card className="glass-card">
-                      <Typography>Suggestions</Typography>
-                      <List>
-                        {resume.suggestions.map((s, i) => (
-                          <ListItem key={i}>
-                            <ListItemText primary={s} />
-                          </ListItem>
-                        ))}
-                      </List>
+                    <Card>
+                      <Typography>ATS Feedback</Typography>
+                      {resume.ats_feedback.map((f,i)=><Typography key={i}>{f}</Typography>)}
                     </Card>
                   </Grid>
 
-                  {/* ✅ ATS Feedback Section */}
+                  {/* Resume Fix */}
                   <Grid item xs={12}>
-                    <Card className="glass-card">
-                      <Typography>ATS Simulation Feedback</Typography>
-                      <List>
-                        {resume.ats_feedback.map((f, i) => (
-                          <ListItem key={i}>
-                            <ListItemText primary={f} />
-                          </ListItem>
-                        ))}
-                      </List>
+                    <Card>
+                      <Typography>AI Improvements</Typography>
+                      {resume.resume_fixes.map((f,i)=>(
+                        <div key={i}>
+                          <p>❌ {f.original}</p>
+                          <p>✅ {f.improved}</p>
+                        </div>
+                      ))}
                     </Card>
                   </Grid>
 
-                  {/* Download */}
                   <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      onClick={() => handleDownload(resume)}
-                    >
+                    <Button onClick={()=>handleDownload(resume)} variant="contained">
                       Download PDF
                     </Button>
                   </Grid>
+
                 </Grid>
               );
             })}
