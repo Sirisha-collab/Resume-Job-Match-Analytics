@@ -6,6 +6,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from difflib import SequenceMatcher
+from sklearn.linear_model import LogisticRegression
+import numpy as np
 import re
 
 app = Flask(__name__)
@@ -159,38 +161,201 @@ def ats_simulation(resume_text, job_desc):
     return feedback
 
 # -----------------------
-# Skill Gap Roadmap
+# Resume Fix AI 
+# -----------------------
+ACTION_VERBS = [
+    "Developed", "Implemented", "Designed", "Led", "Optimized",
+    "Improved", "Built", "Automated", "Analyzed", "Delivered"
+]
+
+def clean_lines(text):
+    lines = []
+    for line in text.split('\n'):
+        line = line.strip()
+        if len(line) > 20 and not line.isupper():  # remove noise/headings
+            lines.append(line)
+    return lines
+
+
+def is_weak_bullet(line):
+    weak_phrases = [
+        "responsible for",
+        "worked on",
+        "helped with",
+        "involved in",
+        "tasked with"
+    ]
+    return any(p in line.lower() for p in weak_phrases)
+
+
+def rewrite_bullet(line):
+    original = line
+
+    # Remove weak phrases
+    line = re.sub(
+        r"(responsible for|worked on|helped with|involved in|tasked with)",
+        "",
+        line,
+        flags=re.I
+    ).strip()
+
+    # Add action verb if missing
+    if not any(line.lower().startswith(v.lower()) for v in ACTION_VERBS):
+        line = f"{ACTION_VERBS[0]} {line}"
+
+    # Add measurable impact if missing
+    if not re.search(r'\d+%|\d+\s*(users|clients|projects)', line):
+        line += " resulting in a 20% improvement."
+
+    return original.strip(), line.strip()
+
+
+def resume_fix_ai(resume_text):
+    lines = clean_lines(resume_text)
+    improvements = []
+
+    for line in lines:
+        if is_weak_bullet(line):
+            original, improved = rewrite_bullet(line)
+
+            # Only keep if actually changed
+            if original != improved:
+                improvements.append({
+                    "original": original,
+                    "improved": improved
+                })
+
+    return improvements[:5]
+
+def extract_features(score, matched, missing, experience_level, resume_text):
+    total_skills = len(matched) + len(missing) + 1
+
+    skill_ratio = len(matched) / total_skills
+    keyword_density = len(get_keywords(resume_text)) / (len(resume_text.split()) + 1)
+
+    exp_map = {
+        "Fresher": 0,
+        "Junior": 1,
+        "Mid": 2,
+        "Senior": 3
+    }
+
+    experience_score = exp_map.get(experience_level, 1)
+
+    return [
+        score / 100,              # ATS score normalized
+        skill_ratio,              # skill match ratio
+        keyword_density,          # keyword richness
+        experience_score          # experience level
+    ]
+
+# -----------------------
+# Train ML Model (For scoring)
+# -----------------------
+def train_model():
+    X = []
+    y = []
+
+    # Simulated training data
+    for i in range(200):
+        ats = np.random.uniform(0.3, 1.0)
+        skill = np.random.uniform(0.2, 1.0)
+        keyword = np.random.uniform(0.1, 0.9)
+        exp = np.random.randint(0, 4)
+
+        X.append([ats, skill, keyword, exp])
+
+        # Rule-based label (simulate hiring decision)
+        score = (ats * 0.4 + skill * 0.3 + keyword * 0.2 + exp * 0.1)
+
+        y.append(1 if score > 0.6 else 0)
+
+    model = LogisticRegression()
+    model.fit(X, y)
+    return model
+
+
+ML_MODEL = train_model()
+
+def predict_resume_score(features):
+    prob = ML_MODEL.predict_proba([features])[0][1]
+    score = round(prob * 100, 2)
+
+    if score > 75:
+        confidence = "High"
+    elif score > 50:
+        confidence = "Medium"
+    else:
+        confidence = "Low"
+
+    return score, confidence
+
+# -----------------------
+# Skill Gap Roadmap (Improved)
 # -----------------------
 LEARNING_RESOURCES = {
     "python": [
         {"name": "Python for Everybody (Coursera)", "url": "https://www.coursera.org/specializations/python"},
-        {"name": "Python Basics (Udemy)", "url": "https://www.udemy.com/course/python-for-beginners/"},
+        {"name": "Python Bootcamp (Udemy)", "url": "https://www.udemy.com/course/complete-python-bootcamp/"},
         {"name": "Python Learning Path (Microsoft Learn)", "url": "https://learn.microsoft.com/en-us/training/paths/python-language/"}
     ],
     "machine learning": [
-        {"name": "Machine Learning by Andrew Ng (Coursera)", "url": "https://www.coursera.org/learn/machine-learning"},
+        {"name": "Machine Learning - Andrew Ng (Coursera)", "url": "https://www.coursera.org/learn/machine-learning"},
         {"name": "Machine Learning A-Z (Udemy)", "url": "https://www.udemy.com/course/machinelearning/"},
-        {"name": "ML Learning Path (Microsoft Learn)", "url": "https://learn.microsoft.com/en-us/training/paths/build-ai-solutions-with-ml/"}
+        {"name": "ML Path (Microsoft Learn)", "url": "https://learn.microsoft.com/en-us/training/paths/build-ai-solutions-with-ml/"}
+    ],
+    "deep learning": [
+        {"name": "Deep Learning Specialization (Coursera)", "url": "https://www.coursera.org/specializations/deep-learning"},
+        {"name": "Deep Learning (Udemy)", "url": "https://www.udemy.com/course/deeplearning/"}
     ],
     "javascript": [
-        {"name": "JavaScript Basics (Udemy)", "url": "https://www.udemy.com/course/the-complete-javascript-course/"},
-        {"name": "JS Tutorials (Microsoft Learn)", "url": "https://learn.microsoft.com/en-us/training/paths/javascript-first-steps/"}
+        {"name": "JavaScript Course (Udemy)", "url": "https://www.udemy.com/course/the-complete-javascript-course/"},
+        {"name": "JavaScript Path (Microsoft Learn)", "url": "https://learn.microsoft.com/en-us/training/paths/javascript-first-steps/"}
+    ],
+    "react": [
+        {"name": "React Course (Udemy)", "url": "https://www.udemy.com/course/react-the-complete-guide/"},
+        {"name": "React Docs", "url": "https://react.dev"}
     ],
     "azure": [
         {"name": "Azure Fundamentals (Microsoft Learn)", "url": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals/"},
-        {"name": "Azure Essentials (Udemy)", "url": "https://www.udemy.com/course/azure-essentials/"}
+        {"name": "Azure Course (Udemy)", "url": "https://www.udemy.com/course/azure-essentials/"}
     ],
-    "ai": [
-        {"name": "AI For Everyone (Coursera)", "url": "https://www.coursera.org/learn/ai-for-everyone"}
+    "sql": [
+        {"name": "SQL for Data Science (Coursera)", "url": "https://www.coursera.org/learn/sql-for-data-science"},
+        {"name": "SQL Bootcamp (Udemy)", "url": "https://www.udemy.com/course/the-complete-sql-bootcamp/"}
     ]
 }
 
+def normalize_skill(skill):
+    skill = skill.lower()
+    skill = re.sub(r'[^a-z0-9\s]', '', skill)  # remove symbols
+    return skill.strip()
+
+
+def match_skill_to_resource(skill):
+    skill_norm = normalize_skill(skill)
+
+    for key in LEARNING_RESOURCES:
+        # Exact match
+        if key == skill_norm:
+            return key
+
+        # Partial match (important fix)
+        if key in skill_norm or skill_norm in key:
+            return key
+
+    return None
+
+
 def get_learning_links(missing_skills):
     roadmap = {}
+
     for skill in missing_skills:
-        normalized = skill.lower()
-        if normalized in LEARNING_RESOURCES:
-            roadmap[skill] = LEARNING_RESOURCES[normalized]
+        matched_key = match_skill_to_resource(skill)
+
+        if matched_key:
+            roadmap[skill] = LEARNING_RESOURCES[matched_key]
+
     return roadmap
 
 # -----------------------
@@ -208,7 +373,10 @@ def analyze():
         suggestions = generate_suggestions(score, missing)
         experience_level = predict_experience_level(resume_text)
         learning_roadmap = get_learning_links(missing)
-        ats_feedback = ats_simulation(resume_text, job_desc)
+        ats_feedback = ats_simulation(resume_text, job_desc), #for ATS rejecting feedback
+        resume_fixes = resume_fix_ai(resume_text)  #for resume fix 
+        features = extract_features(score, matched, missing, experience_level, resume_text) #for ML scoring 
+        ml_score, confidence = predict_resume_score(features) #for ML scoring
 
         return jsonify({
             "score": score,
@@ -216,8 +384,9 @@ def analyze():
             "missing_skills": missing[:10],
             "suggestions": suggestions,
             "experience_level": experience_level,
-            "learning_roadmap": learning_roadmap,
-            "ats_feedback": ats_feedback   #for ATS rejecting feedback
+            "learning_roadmap" : get_learning_links(missing),
+            "ats_feedback": ats_feedback,   #for ATS rejecting feedback
+            "resume_fixes": resume_fixes    #for resume fix 
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -240,6 +409,9 @@ def compare_resumes():
             experience_level = predict_experience_level(resume_text)
             learning_roadmap = get_learning_links(missing)
             ats_feedback = ats_simulation(resume_text, job_desc)
+            resume_fixes = resume_fix_ai(resume_text)   #for resume fix 
+            features = extract_features(score, matched, missing, experience_level, resume_text) # for ml scoring
+            ml_score, confidence = predict_resume_score(features) #for ML score
 
             results.append({
                 "filename": file.filename,
@@ -249,7 +421,10 @@ def compare_resumes():
                 "suggestions": suggestions,
                 "experience_level": experience_level,
                 "learning_roadmap": learning_roadmap,
-                "ats_feedback": ats_feedback  #for ATS rejecting feedback
+                "ats_feedback": ats_feedback,   #for ATS rejecting feedback
+                "resume_fixes": resume_fixes,    #for resume fix 
+                "ml_score": ml_score,           #for ML scoring
+                "ml_confidence": confidence
             })
         return jsonify({"comparison": results})
     except Exception as e:
