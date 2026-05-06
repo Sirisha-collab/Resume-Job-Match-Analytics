@@ -1,5 +1,5 @@
-Designed to parse resume text, extract key skills and information, and match the job description **using Jupyter Notebook**
-Built:
+
+**Built:**
 •	PDF ingestion pipeline
 •	NLP text preprocessing
 •	TF-IDF vectorization
